@@ -1,0 +1,276 @@
+import pandas as pd
+pd.option.display.max_columns=100
+
+raw_log = pd.read_csv("data path /kmong-conversion.csv")
+print(raw_log.shape)
+raw_log.head()
+
+raw_funnel = pd.read_csv("data path/kmong-funnel.csv")
+print(raw_funnel.shape)
+raw_funnel
+
+raw_category = pd.read_csv("kmong-category.csv")
+print(raw_category.shape)
+raw_category
+
+
+1. 데이터 정리
+raw_log['user_id'] = raw_log['canonicaldeviceuuid']
+userid = raw_log['user_id']
+raw_log[['canonicaldeviceuuid', 'userid']].head()
+
+
+2. 날짜 데이터 추출
+raw_log['eventdatetime'] = pd.to_datetime(raw_log['eventdatetime']
+raw_log['eventdatetime_year'] = raw_log['eventdatetime'].dt.year
+raw_log["eventdatetime_month"] = raw_log["eventdatetime"].dt.month
+raw_log["eventdatetime_day"] = raw_log["eventdatetime"].dt.day
+raw_log["eventdatetime_hour"] = raw_log["eventdatetime"].dt.hour
+raw_log["eventdatetime_minute"] = raw_log["eventdatetime"].dt.minute
+raw_log["eventdatetime_second"] = raw_log["eventdatetime"].dt.second
+cols = ["eventdatetime", "eventdatetime_year", "eventdatetime_month", "eventdatetime_day", "eventdatetime_hour", "eventdatetime_minute", "eventdatetime_second"]
+raw_log[cols].head()
+
+
+3. osversion 컬럼 정보 분리
+def find_ostype(osversion):
+    if 'iOS' in osversion:
+        return 'iOS'
+    else:
+        return 'Android'
+raw_log['ostype(clean)'] = raw_log['osversion'].apply(find_ostype)
+
+raw_log['osversion(clean)'] = raw_log['osversion'].str.replace('iOS',"").str.replace('Android',"")
+
+raw_log[['osversion','ostype(clean)','osversion(clean)']].head()
+
+
+4. devicemanufacturer 정보 분리
+raw_log['devicemanufacturer'].unique()
+def clean_dmf(raw):
+    if raw == 'samsung':
+        return 'Samsung'
+    elif raw == 'Apple':
+        return 'Apple'
+    elif 'LG' in raw:
+        return 'LG'
+    else:
+        return 'Others'
+
+raw_log['devicemanufacturer(clena)'] = raw_log['devicemanufacturer'].apply(clean_dmf)
+cols = ['devicemanufacturer', 'devicemanufacturer(clean)']
+raw_log[cols].head()
+
+
+5. channel 컬럼 정보 분리
+raw_log['channel'].unique()
+raw_log[raw_log['channel'].isnull()].head(50)
+
+raw_log['channel(clean)'] = pd.DataFrame(raw_log['channel'])
+def clean_ch(raw2):
+    if pd.isnull(raw2):
+        return raw2
+    elif 'google' in raw2:
+        return 'google'
+    elif 'WEB' in raw2:
+        return 'web'
+    elif 'naver' in raw2:
+        return 'naver'
+    elif 'daum' in raw2:
+        return 'daum'
+    elif 'apple' in raw2:
+        return 'apple'
+    elif 'unattributed' in raw2:
+        return 'unattributed'
+    elif 'facebook' in raw2:
+        return 'facebook'
+    else:
+        return '(not set)'
+
+raw_log['channel(clean)'] = raw_log['channel'].apply(clean_ch)
+
+
+6. inappevent category 정보 분리
+def view_cate(raw3):
+    if pd.isnull(raw3):
+        return raw3
+    else:
+        return raw3.split('_')[0]
+        
+def view_id(raw4):
+    if pd.isnull(raw4):
+        return raw4
+    else:
+        return raw4.split('.')[0]
+        
+def view_action(raw5):
+    if pd.isnull(raw5):
+        return raw5
+    else:
+        return raw5.split('.')[-1]
+        
+        
+7. 불필요한 컬럼 제거
+raw_log = raw_log.drop(['osversion','devicemanufacturer','canonicaldeviceuuid','channel','event_rank'], axis=1)
+raw_log.head()
+
+
+8. 이름 통일
+raw_log['event_category'] = raw_log['eventcategory']
+raw_log = raw_log.drop('eventcategory', axis=1)
+
+raw_log["is_first_activity"] = raw_log["isfirstactivity"]
+raw_log = raw_log.drop('isfirstactivity', axis=1)
+
+raw_log["app_package_name"] = raw_log["apppackagename"]
+raw_log = raw_log.drop('apppackagename', axis=1)
+
+raw_log["app_version"] = raw_log["appversion"]
+raw_log = raw_log.drop('appversion', axis=1)
+
+raw_log["device_type"] = raw_log["devicetype"]
+raw_log = raw_log.drop('devicetype', axis=1)
+
+raw_log["source_type"] = raw_log["sourcetype"]
+raw_log = raw_log.drop('sourcetype', axis=1)
+
+raw_log['in_app_event_category'] = raw_log['inappeventcategory']
+raw_log = raw_log.drop('inappeventcategory',axis=1)
+
+raw_log['in_app_event_label'] = raw_log['inappeventlabel']
+raw_log = raw_log.drop('inappeventlabel',axis=1)
+
+raw_log['event_datetime'] = raw_log['eventdatetime']
+raw_log = raw_log.drop('eventdatetime', axis=1)
+
+raw_log['event_datetime_year'] = raw_log['eventdatetime_year']
+raw_log = raw_log.drop('eventdatetime_year',axis=1)
+
+raw_log['event_datetime_month'] = raw_log['eventdatetime_month']
+raw_log = raw_log.drop('eventdatetime_month',axis=1)
+
+raw_log['event_datetime_day'] = raw_log['eventdatetime_day']
+raw_log = raw_log.drop('eventdatetime_day',axis=1)
+
+raw_log['event_datetime_hour'] = raw_log['eventdatetime_hour']
+raw_log = raw_log.drop('eventdatetime_hour',axis=1)
+
+raw_log['event_datetime_minute'] = raw_log['eventdatetime_minute']
+raw_log = raw_log.drop('eventdatetime_minute',axis=1)
+
+raw_log['event_datetime_second'] = raw_log['eventdatetime_second']
+raw_log = raw_log.drop('eventdatetime_second',axis=1)
+
+raw_log['row_uuid'] = raw_log['rowuuid']
+raw_log = raw_log.drop('rowuuid',axis=1)
+
+raw_log['is_first_goal_activity'] = raw_log['isfirstgoalactivity']
+raw_log = raw_log.drop('isfirstgoalactivity',axis=1)
+
+raw_log['user_id'] = raw_log['userid']
+raw_log = raw_log.drop('userid',axis=1)
+
+raw_log['os_type'] = raw_log['ostype(clean)']
+raw_log = raw_log.drop('ostype(clean)',axis=1)
+
+raw_log['os_version'] = raw_log['osversion(clean)']
+raw_log = raw_log.drop('osversion(clean)',axis=1)
+
+raw_log['device_manufacturer'] = raw_log['devicemanufacturer(clean)']
+raw_log = raw_log.drop('devicemanufacturer(clean)',axis=1)
+
+raw_log['channel'] = raw_log['channel(clean)']
+raw_log = raw_log.drop('channel(clean)',axis=1)
+
+raw_log['view_category'] = raw_log['viewcategory']
+raw_log = raw_log.drop('viewcategory', axis=1)
+
+raw_log['view_id'] = raw_log['viewid']
+raw_log = raw_log.drop('viewid', axis=1)
+
+raw_log['view_action'] = raw_log['viewaction']
+raw_log = raw_log.drop('viewaction', axis=1)
+
+
+9. 컬럼 정렬
+raw_log = raw_log[['row_uuid','app_package_name','user_id','event_datetime',
+         'event_datetime_year','event_datetime_month','event_datetime_day',
+         'event_datetime_hour','event_datetime_minute','event_datetime_second',
+         'device_manufacturer','device_type','os_type','os_version','app_version',
+         'event_category','view_category','view_id','view_action','in_app_event_category',
+         'in_app_event_label','source_type','channel','params_campaign','params_medium',
+         'params_term','is_first_activity','is_first_goal_activity']]
+
+
+10. funnel 데이터 정리
+raw_funnel.head()
+# raw_funnel['lv1'] = raw_funnel['Lv1']
+  raw_funnel = raw_funnel.drop('Lv1', axis=1)
+# raw_funnel['lv2'] = raw_funnel['Lv2']
+  raw_funnel = raw_funnel.drop('Lv2', axis=1)
+# raw_funnel['view_id'] = raw_funnel['viewid']
+  raw_funnel = raw_funnel.drop('viewid' axis=1)
+# raw_funnel['view_desc'] = raw_funnel['viewid desc']
+  raw_funnel = raw_funnel.drop('viewid desc', axis=1)
+# raw_funnel['funnel_name'] = raw_funnel['funnel name']
+  raw_funnel = raw_funnel.drop('funnel name', axis=1)
+# raw_funnel['funnel_desc'] = raw_funnel['funnel desc']
+  raw_funnel = raw_funnel.drop('funnel desc', axis=1)
+
+raw_funnel = raw_funnel[['lv1','lv2','viwe_id','view_desc','funnel_name','funnel_desc']]
+
+
+11. category 데이터 정리
+raw_category['category_id'] = raw_category['categoryid']
+raw_category = raw_category.drop('categoryid', axis=1)
+
+raw_category['category_name'] = raw_category['categoryname']
+raw_category = raw_category.drop('categoryname', axis=1)
+
+raw_category['category1_id'] = raw_category['cat1_id']
+raw_category = raw_category.drop('cat1_id', axis=1)
+
+raw_category['category2_id'] = raw_category['cat2_id']
+raw_category = raw_category.drop('cat2_id', axis=1)
+
+raw_category['category3_id'] = raw_category['cat3_id']
+raw_category = raw_category.drop('cat3_id', axis=1)
+
+raw_category['category1'] = raw_category['cat1']
+raw_category = raw_category.drop('cat1', axis=1)
+
+raw_category['category2'] = raw_category['cat2']
+raw_category = raw_category.drop('cat2', axis=1)
+
+raw_category['category3'] = raw_category['cat3']
+raw_category = raw_category.drop('cat3', axis=1)
+
+raw_category = raw_category[['depth', 'category_id', 'category_name', 'category1_id',
+              'category2_id','category3_id','category1','category2',
+              'category3']]
+
+
+12. log데이터 view_id컬럼 + funnel 데이터 view_id 컬럼 병합
+add = pd.merge(raw_log, raw_funnel, how='left', left_on='view_id', right_on='view_id')
+
+
+13. 12번데이터 + category 데이터의 category_id 병합
+add = pd.merge(add, raw_category, how='left', left_on='in_app_event_label', right_on='category_id')
+
+
+14. 합친 데이터에서 불필요한 컬럼 제거 후 정렬
+add = add.drop(['in_app_event_category','in_app_event_label','source_type',
+                'lv1','lv2','funnel_name','depth','category_id',
+                'category1_id','category2_id','category3_id'], axis=1)
+add = add[['row_uuid','app_package_name','user_id','event_datetime',
+          'event_datetime_year','event_datetime_month','event_datetime_day',
+          'event_datetime_hour','event_datetime_minute','event_datetime_second',
+          'device_manufacturer','device_type','os_type','os_version',
+          'app_version','event_category','view_category','view_id','view_action',
+          'funnel_desc','view_desc','category_name','category1','category2',
+          'category3','channel','params_campaign','params_medium',
+          'params_term','is_first_activity','is_first_goal_activity']]
+          
+          
+15. row_uuid를 인덱스로 지정      
+add.set_index('row_uuid', inplace=True)
