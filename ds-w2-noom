@@ -1,0 +1,186 @@
+import pandas as pd
+import numpy as np
+
+raw_data = pd.read_csv('data path/noom_user.csv', parse_dates=['Purchased At'])
+
+
+1. 컬럼 정리
+cols = ['Access Code', 'Name',' Gender','Age','Height','Inutial Weight','Lowest Weight', 'Target Weight', 'Status','Price','Purchased At','Channel']
+data = raw_data[cols].copy()
+
+data.set_index('Access Code', inplace=True)
+
+data.reset_index().head()
+data.reset_index().reset_index().head()
+
+
+2. 성별 컬럼 정리
+raw_data['Gender'].unique()
+data.info()
+data['Gender(clean)'] = data['Gender'].str.lower()
+data[['Name','Gender','Gender(clean)']].head()
+
+data['Gender(clean)'].value_counts()
+
+
+3. 키 컬럼 정리
+data['Height'].min()
+data['Height(clean)'] = data['Height'].copy()
+data.loc[data['Height'] == -1, 'Height(clean)] = pd.np.nan
+data.loc[data['Height'] == -1, ['Name','Height', 'Height(clean)']].head()
+
+data.pivot_table(index='Gender(clean)', values='Height(clean)')
+
+data.groupby('Gender(clean)')['Height(clean)'].mena()
+
+
+4.나이컬럼 정리
+data['Age'].min()
+data['Age'].max()
+
+def clean_age(age):
+    if age == 0 or age >= 60:
+        return pd.np.nan
+    else:
+        return age
+        
+data.pivot_table(index='Gender(clean)', values='Age(clean)')
+
+data['Age(clean)'] = data['Age'].apply(clean_age)
+c1 = data['Age'] >= 60
+c2 = data['Age'] == 0
+data.loc[c1|c2, ['Name','Age','Age(clean)']].head()
+
+
+5. VIP 구하기 컬럼 정리
+new_columns = ['Name','Age(clean)','Height(clean)','Initial Weight','Lowest Weight','Target Weight',' Status']
+weight_info = data[new_columns].copy()
+
+
+6. 추가 정보 계산
+weight_info['Weight Loss(goal)'] = weight_info['Initial Weight'] - weight_info['Target Weight']
+weight_info['Weight Loss(current)'] = weight_info['Initial Weight'] - weight_info['Lowest Weight']
+weight_info['BMI'] = weight_info['Initial Weight'] / ((weight_info['Height(clean)']*0.01)**2)
+weight_info[['Name','Weight Loss(goal)','Weight Loss(current)','BMI']].head()
+
+
+7. 잘못된 정보를 기입한 사용자 찾기
+def is_valid(row):
+    if row['Status'] != 'completed:
+        return False
+    cols = ['Age(clean)','Height(clean)','Initial Weight','Lowest Weight','Target Weight']
+    
+    if row[cols].isnull().sum() != 0:
+        return True
+    if row['Height(clean)'] < 140 or row['Height(clean)'] > 200:
+        return True
+    if row['BMI'] < 18.5 or row['BMI'] > 30:
+        return True
+    if row['Weight Loss(goal)'] < 0:
+        return True
+    
+    return False
+weight_info.apply(is_valid, axis=1)
+
+weight_info['Invalid'] = weight_info.apply(is_valid, axis='columns').copy()
+weight_info.loc[weight_info['Invalid'] == True].head()
+
+
+8. VIP 사용자 체크
+def find_vip(row2):
+    if row2['Status'] != 'completed':
+        return False
+    cols2 = ['Weight Loss(goal)','Weight Loss(current)','BMI']
+    
+    if row2[cols2].isnull().sum() != 0:
+        return False
+        
+        return False
+    if row2['BMI'] < 30:
+        return False
+    if row2['Weight Loss(current)'] < row2['Weight Loss(goal)']:
+        return False
+        
+    return Truen
+weight_info.apply(find_vip, axis='columns')
+
+weight_info['VIP'] = weight_info.apply(find_vip, axis='columns').copy()
+weight_info.loc[weight_info['VIP'] == True]
+
+
+9. 총 인원수와 비율
+data['Status'].value_counts()
+
+
+10. 성별과 나이별 결제 캔슬 환불 총 인원수와 비율
+def age_group(age):
+    if age <= 17:
+        return '00 ~ 17'
+    if 18 <= age <= 24:
+        return '18 ~ 24'
+    if 25 <= age <= 35:
+        return '25 ~ 35'
+    if 36 <= age <= 44:
+        return '36 ~ 44'
+    if 45 <= age <= 54:
+        return '45 ~ 54'
+    return '55 ~ 99'
+    
+data['Age(group)'] = data['Age(clean)'].copy().apply(age_group)
+table = pd.pivot_table(data, values='Age(clean)', index=['Gender(clean)','Age(group)'],
+                        columns=['Status'], aggfunc='count', margins=True,
+                        margins_name = 'total', fill_value=0)
+                        
+table = table.iloc[:-1]
+table['conversion'] = table['completed']/table['total']
+
+
+11. 날짜/요일/시간별 결제/캔슬/환불 비율
+data['Purchased At(hour)'] = data['Purchased At].dt.hour
+data['Purchased At(weekday)'] = data['Purchased At].dt.weekday_name
+
+table2 = pd.pivot_table(data, values='Name', index=['Purchased At(hour)'],
+                        columns=['Status'], aggfunc='count', margins=True,
+                        margins_name='total', fill_value=0)
+table2 = table2.iloc[:-1]
+table2['conversion'] = table2['completed']/table2['total']
+
+table3 = pd.pivot_table(data, values='Name', index=['Purchased At(weekday)'],
+                        columns=['Status'], aggfunc='count', margins=True,
+                        margins_name='total', fill_value=0)
+table3 = table3.iloc[:-1]
+table3['conversion'] = tabel3['completed']/table3['total']
+weekday_columns = ['Monday', Tuesday',' Wednesday','Thursday','Friday','Saturday','Sunday']
+table3.loc[weekday_columns]
+
+
+12. 채널별
+data['Channel'].value_counts()
+table4 = pd.pivot_table(data, values='Name', index=['Channel'],
+                        columns=['Status'], aggfunc='count', margins=True,
+                        margins_name='total', fill_value=0)
+table4 = table4.iloc[:-1]
+table4['conversion'] = table4['completed']/table4['total']
+
+
+13. 기존데이터 + 코치데이터
+coach = pd.read_csv('data path/noom_coahc.csv', index_col = 'Access Code')
+
+concat_coach = pd.concat([data[['Name',' Stauts']], coach], axis='columns')
+
+
+14. 코치별 담당사용자/구매완료횟수/캔슬횟수/환불횟수
+coach_data = concat_coach.groupby('Status').sum()
+coach_data = coach_data.T
+
+
+15. 총합/전환율/ 취소율
+coach_data['total'] = coach_data.sum(axis='colums')
+coach_data['conversion rate'] = coach_data['completed']/coach_data['total']
+coach_data['cacellation rate'] = (coach_data['cancelled']+coach_data['refunded'])/coach_data['total']
+
+coach_data_fin = coach_data[coach_data['total']>=100]
+
+coach_data_fin = coach_data_fin.sort_values(by='conversion rate', ascending=False)
+
+coach_data_fin = coach_data-fin.sort_values(by='cancellation rate', ascending=False)
