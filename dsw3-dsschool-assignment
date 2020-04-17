@@ -1,0 +1,175 @@
+1. 설문조사 결과 로딩/기준 정렬
+import pandas as pd
+import sqlite3
+import numpy as np
+
+pd.options.display.max_columns = 50
+connect = sqlite3.connect('data path/dsschool.db')
+connect
+
+query = "SELECT * FROM 'surveys'"
+surveys = pd.read_sql(query, connect)
+
+cols = ['user_id','question_id','created_at']
+surveys.sort_values(cols, inplace=True)
+
+
+2. survey 정보 cleaning
+for i in range(1,13):
+    surveys[f"answer{i}_selected(bool)"] = surveys[f"answer{i}_selected"] == 't'
+cols = [f"answer{i}_selected(bool)" for i in range(1,13)]
+
+tmp = surveys.replace('t', True).replace('f', False)[cols]
+pd.concat([surveys,tmp], axis='columns')
+
+surveys['created_at'] = pd.to_datetime(surveys['created_at']
+surveys['updated_at'] = pd.to_datetime(surveys['updated_at']
+cols = ['created_at','updated_at']
+
+cols = ['user_id','question_id']
+surveys[surveys.duplicated(cols, keep=False)]
+
+surveys = surveys.drop_duplicates(cols, keep='last')
+
+
+3. 결제정보 로딩 / 연락처, 수업정보 정리
+query = """ SELECT * FROM 'payments' """
+payments = pd.read_sql(query, connect)
+
+payments['연락처(clean)'] = payments['연락처'].copy()
+start_with_82 = payments['연락처'].str.startswith('\+82')
+start_with_010 = payments['연락처'].str.startswith('010')
+valid_phone_number = start_with_82|start_with_010
+payments.loc[~valid_phone_number, '연락처(clean)'] = pd.np.nan
+cols = ['연락처','연락처(clean)']
+payments.loc[~valid_phone_number, cols].head()
+
+payments.loc[start_with_82, '연락처(clean)'].str.replace('\+82', '0')
+
+def clean_phone_number(phone_number):
+    if pd.isnull(phone_number):
+        return phone_number
+    if '-' in phone_number:
+        return phone_number
+    else:
+        phone_number = phone_number[0:3] + '-' + phone_number[3:7] + '-' + phone_number[7:]
+        return phone_number
+payments['연락처(clean)'] = payments[연락처(clean)'].apply(clean_phone_number)
+cols = ['연락처','연락처(clean)']
+
+payments['수업타입'] = payments['신청수업'].str.split().apply(lambda x : x[0])
+payments['기수'] = payments['신청수업'].str.split().apply(lambda x : x[1])
+cols = ['신청수업','수업타입','기수']
+
+
+4. 2018년 이후 결제정보 정리
+payments['상태(bool)'] = payments['상태'] == '결제완료'
+payments[['상태','상태(bool)']].head()
+
+
+5.신청날짜 칼럼 정리 / 금액정보 정수형 변환
+payments['신청날짜(연)'] = payments['신청날짜'].dt.year
+payments['신청날짜(월)'] = payments['신청날짜'].dt.month
+payments['신청날짜(일)'] = payments['신청날짜'].dt.day
+payments['신청날짜(시)'] = payments['신청날짜'].dt.hour
+payments['신청날짜(분)'] = payments['신청날짜'].dt.minute
+payments['신청날짜(초)'] = payments['신청날짜'].dt.second
+payments['신청날짜(요일)'] = payments['신청날짜'].dt.weekday_name
+payments['금액(int)'] = payments['금액'].str.replace(",","").astype(int)
+date_int_cols = ['신청날짜(연)','신청날짜(월)','신청날짜(일)','신청날짜(시)',
+                  '신청날짜(분)','신청날짜(초)','신청날짜(요일)','금액','금액(int)']
+payments[date_int_cols].head()
+
+
+6. 요일별/시간별 결제량 차이
+pay_table = pd.pivot_table(payments, index='신청날짜(요일)', values='금액(int), aggfunc=['sum','count'], fill_value=0)
+weekday_cols = ['Monday','Tuesday','Wedneday','Thursday','Friday','Saturday','Sunday']
+pay_table.loc[weekday_cols]
+
+time_table = payments.pivot_table(index='신청날짜(시)', values='금액(int)', aggfunc=['sum','count'], fill_value=0)
+
+
+7.설문조사 데이터 정리
+answer_list = [f"answer{i}_selected(bool)" for i in range(1,13)]
+sur_table = pd.pivot_table(surveys, index='question_id', values=answer_list, aggfunc='mean')
+sur_table = sur_table[answer_list].loc[[1,3]]
+
+
+8.merge
+query = """ SELECT * FROM 'users' """
+users = pd.read_sql(query, connect)
+
+data_merge = pd.merge(payments, users, how='inner', left_on='이메일', right_on='email').mergae(surveys, how='inner', on='user_id')
+
+
+9.SQL join
+query = """ SELECT * FROM 'payments' INNER JOIN 'users' ON 'payments'.이메일 = 'users'.email INNER JOIN 'surveys' ON 'users'.user_id = 'surveys'.user_id """
+data_join = pd.read_sql(query, connect)
+
+
+10. 8번 merging 데이터컬럼 정리/클리닝
+selected_columns = ['user_id',  '이름', '연락처(clean)', '이메일', '신청수업', '금액(int)', '결제방법', '신청날짜', '상태(bool)', 'mixpanel_id']
+
+selected_columns += [
+    'question_id',
+    'answer1_selected(bool)', 'answer2_selected(bool)', 'answer3_selected(bool)',
+    'answer4_selected(bool)', 'answer5_selected(bool)', 'answer6_selected(bool)',
+    'answer7_selected(bool)', 'answer8_selected(bool)', 'answer9_selected(bool)',
+    'answer10_selected(bool)', 'answer11_selected(bool)', 'answer12_selected(bool)'
+]
+
+selected_columns += [
+    'created_at', 'updated_at'
+]
+data_merge = data_merge[selected_columns]
+data_merge = data_merge[data_merge['신청날짜']>=data_merge['created_at']]
+
+data_merge = data_merge.sort_values(by=['이메일','question_id','created_at'])
+data_merge = data_merge.drop_duplicates(['이메일','신청수업','question_id'], keep='last')
+
+
+11.정리한 결과를 바탕으로 1,3 번 응답결과 정리
+pay_table = pd.pivot_table(data_merge, index='question_id', values=answer_list, aggfunc='mean')
+pay_table = pay_table[answer_list].loc[[1,3]]
+
+%matplotlib inline
+import seaborn as sns
+import matplotlib.pyplot as plt
+
+
+12. 결제까지 걸린 시간
+time = data_merge['신청날짜'] - data_merge['created_at']
+time.to_frame(name='time').head()
+time.dt.components.head()
+time_ex = time.dt.components['days'] + (time.dt.components['hours']/24) + (time.dt.components['minutes']/(24*60)) + (time.dt.components['seconds']/(24*60*60))
+sns.set_style('whitegrid', {'grid.linestyle':'--'})
+plt.figure(figsize=(10,5))
+sns.distplot(time_ex, hist=False, kde_kws={'cumulative':True})
+
+
+13. 믹스패널 데이터/users와 payments와 병합
+mixpanel = pd.read_csv('data path/mixpane_people_profiles_revised.csv')
+mix_user_pay_merge = (mixpanel.merge(users, how='inner', left_on='distinct_id', right_on='mixpanel_id').merge(payments, on='payment_id', how='left'))
+
+
+14. 캠페인 별 id 수에 비해 결제비율 가장 높은 광고
+mix_user_pay_merge.loc[mix_user_pay_merge['상태(bool)'] == True, '상태(bool)'] = 1
+mix_user_pay_merge.loc[mix_user_pay_merge['상태(bool)'] != True, '상태(bool)'] = 0
+
+pd.pivot_table(mix_user_pay_merge, index='utm_campaign [first touch]', values='상태(bool)', 
+                aggfunc='mean', dropna=True).sort_values('상태(bool)', ascending=False).head()
+                
+counts = mix_user_pay_merge['utm_campaign[first touch]'].value_counts()
+count_over20 = counts[counts>20]
+data_over20 = mix_user_pay_merge[mix_user_pay_merge['utm_campaign[first touch]'].isin(count_over20.index)]
+pd.pivot_table(data_over20, index='utm_campaign[first touch]', values='상태(bool)', aggfunc='mean').sort_values('상태(bool)', ascending=False).head()
+                
+
+15.두개 이상 강의를 수강한 고객
+payments_fin = payments[payments['상태(bool)'] == True]
+payments_fin = payments_fin.sort_values('신청날짜')
+payments_fin = payments_fin.drop_duplicates(['이름','이메일','신청수업'], keep='last')
+
+pay_email_count = paymetns_fin['이메일'].value_counts()
+pay_email_count = pay_email_count[pay_eamil_count>1]
+pay_email_count.to_frame(name = '구매 강좌수').head()
